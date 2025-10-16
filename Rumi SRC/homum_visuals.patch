@@ -22,7 +22,7 @@ index f9b02cb89e..07c5db1b62 100644
    Version: 1
  
  Body:
-+  - Class: GEARLOCK # Use constant name from step 1
++  - Class: GEARLOCK
 +    Name: "Gearlock"
 +    MobSprite: "MOONLIGHT"
 +    Food: Scell
