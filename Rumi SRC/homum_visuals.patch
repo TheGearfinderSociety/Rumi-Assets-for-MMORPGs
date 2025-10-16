@@ -1,0 +1,332 @@
+From 0c6f1be6ec1221cbb0d91e82eafc86c387c4d420 Mon Sep 17 00:00:00 2001
+From: "Rumi A. H. Larrosa" <luis.hlarrosa@gmail.com>
+Date: Wed, 8 Oct 2025 20:04:24 -0300
+Subject: [PATCH] Homunculus Visual Update!
+
+---
+ db/re/homunculus_db.yml      | 62 ++++++++++++++++++++++++++++
+ src/common/mmo.hpp           |  2 +-
+ src/map/homunculus.cpp       | 80 +++++++++++++++++++++++++++++++++---
+ src/map/homunculus.hpp       |  4 ++
+ src/map/map.cpp              | 24 +++++++++++
+ src/map/map.hpp              |  1 +
+ src/map/script_constants.hpp |  2 +
+ src/map/unit.cpp             |  7 ++++
+ 8 files changed, 176 insertions(+), 6 deletions(-)
+
+diff --git a/db/re/homunculus_db.yml b/db/re/homunculus_db.yml
+index f9b02cb89e..07c5db1b62 100644
+--- a/db/re/homunculus_db.yml
++++ b/db/re/homunculus_db.yml
+@@ -57,6 +57,68 @@ Header:
+   Version: 1
+ 
+ Body:
++  - Class: GEARLOCK # Use constant name from step 1
++    Name: "Gearlock"
++    MobSprite: "MOONLIGHT"
++    Food: Scell
++    HungryDelay: 60000
++    Race: Formless
++    Element: NEUTRAL
++    AttackDelay: 700
++    Status:
++      - Type: Hp
++        Base: 200
++        GrowthMinimum: 220
++        GrowthMaximum: 220
++        EvolutionMinimum: 5000
++        EvolutionMaximum: 5000
++      - Type: Sp
++        Base: 40
++        GrowthMinimum: 24
++        GrowthMaximum: 24
++        EvolutionMinimum: 720
++        EvolutionMaximum: 720
++      - Type: Str
++        Base: 20
++        GrowthMinimum: 25
++        GrowthMaximum: 25
++        EvolutionMinimum: 50
++        EvolutionMaximum: 50
++      - Type: Agi
++        Base: 18
++        GrowthMinimum: 20
++        GrowthMaximum: 20
++        EvolutionMinimum: 40
++        EvolutionMaximum: 40
++      - Type: Vit
++        Base: 18
++        GrowthMinimum: 20
++        GrowthMaximum: 20
++        EvolutionMinimum: 40
++        EvolutionMaximum: 40
++      - Type: Int
++        Base: 22
++        GrowthMinimum: 24
++        GrowthMaximum: 24
++        EvolutionMinimum: 60
++        EvolutionMaximum: 60
++      - Type: Dex
++        Base: 28
++        GrowthMinimum: 30
++        GrowthMaximum: 30
++        EvolutionMinimum: 60
++        EvolutionMaximum: 60
++      - Type: Luk
++        Base: 20
++        GrowthMinimum: 16
++        GrowthMaximum: 16
++        EvolutionMinimum: 40
++        EvolutionMaximum: 40
++    SkillTree:
++      - Skill: HOM_ROBOT_CANNON
++        MaxLevel: 5
++
++
+   - Class: Lif
+     Name: Lif
+     EvolutionClass: Lif_H
+diff --git a/src/common/mmo.hpp b/src/common/mmo.hpp
+index eee971def1..6a26b74b7f 100644
+--- a/src/common/mmo.hpp
++++ b/src/common/mmo.hpp
+@@ -184,7 +184,7 @@ const t_itemid WEDDING_RING_F = 2635;
+ //Base Homun skill.
+ #define HM_SKILLBASE 8001
+ #define MAX_HOMUNSKILL 199
+-#define MAX_HOMUNCULUS_CLASS	52	//[orn], Increased to 60 from 16 to allow new Homun-S.
++#define MAX_HOMUNCULUS_CLASS	999	//[orn], Increased to 60 from 16 to allow new Homun-S.
+ #define HM_CLASS_BASE 6001
+ #define HM_CLASS_MAX (HM_CLASS_BASE+MAX_HOMUNCULUS_CLASS-1)
+ 
+diff --git a/src/map/homunculus.cpp b/src/map/homunculus.cpp
+index 60fbb68b04..484e53f77b 100644
+--- a/src/map/homunculus.cpp
++++ b/src/map/homunculus.cpp
+@@ -175,6 +175,8 @@ int32 hom_class2mapid(int32 hom_class)
+ 		case 6050:				return MAPID_SERA;
+ 		case 6051:				return MAPID_DIETER;
+ 		case 6052:				return MAPID_ELANOR;
++		// Gearinder Creations
++		case 6060:				return MAPID_EIRA;
+ 
+ 		default:				return -1;
+ 	}
+@@ -1069,6 +1071,7 @@ void hom_alloc(map_session_data *sd, struct s_homunculus *hom)
+ 	hd->exp_next = homun_exp_db.get_nextexp(hd->homunculus.level);
+ 
+ 	status_set_viewdata(hd, hd->homunculus.class_);
++	hd->vd_changed = false; // Initialize to false
+ 	unit_dataset(hd);
+ 	hd->ud.dir = sd->ud.dir;
+ 
+@@ -1833,6 +1836,25 @@ uint64 HomunculusDatabase::parseBodyNode(const ryml::NodeRef &node) {
+ 		}
+ 	}
+ 
++	if (this->nodeExists(node, "MobSprite")) {
++	    std::string mob_name;
++	
++	    if (!this->asString(node, "MobSprite", mob_name))
++	        return 0;
++	
++	    std::shared_ptr<s_mob_db> mob = mobdb_search_aegisname(mob_name.c_str());
++	
++	    if (mob == nullptr) {
++	        this->invalidWarning(node["MobSprite"], "Invalid MobSprite %s, skipping.\n", mob_name.c_str());
++	        return 0;
++	    }  
++	
++	    hom->mob_sprite_override = mob->vd.look[LOOK_BASE];
++	} else {
++	    if (!exists)
++	        hom->mob_sprite_override = 0; // 0 means no override
++	}
++
+ 	if (this->nodeExists(node, "SkillTree")) {
+ 		const ryml::NodeRef &skillsNode = node["SkillTree"];
+ 
+@@ -2042,11 +2064,52 @@ std::shared_ptr<s_homunculus_db> HomunculusDatabase::homun_search(int32 class_)
+ 
+ HomunculusDatabase homunculus_db;
+ 
+-void hom_reload(void){
++/**
++ * Apply the proper view data on homunculi during homunculus_db reload.
++ * @param hd: Homunculus to adjust
++ * @param args: va_list of arguments
++ * @return 0
++ */
++static int32 hom_reload_sub(homun_data* hd, va_list args) {
++	// If the view data was not manually overridden
++	if (!hd->vd_changed) {
++		// Get the new view data from the homunculus viewdb
++		hd->vd = hom_get_viewdata(hd->homunculus.class_);
++
++		// If they are spawned right now
++		if (hd->prev != nullptr) {
++			// Respawn homunculus on client side so sprite is displayed correctly
++			clif_clearunit_area(*hd, CLR_OUTSIGHT);
++			clif_spawn(hd);
++		}
++	}
++
++	return 0;
++}
++
++void hom_reload(void) {
++	int32 class_; // Add this declaration
++
+ 	homunculus_db.load();
+ 	homun_exp_db.reload();
++
++	// Reinitialize view data for homunculi
++	memset(&hom_viewdb, 0, sizeof(hom_viewdb));
++	for (class_ = 0; class_ < ARRAYLENGTH(hom_viewdb); class_++) {
++		hom_viewdb[class_].look[LOOK_BASE] = HM_CLASS_BASE + class_;
++
++		// Apply sprite override from database if configured
++		std::shared_ptr<s_homunculus_db> hom = homunculus_db.find(HM_CLASS_BASE + class_);
++		if (hom != nullptr && hom->mob_sprite_override > 0) {
++			hom_viewdb[class_].look[LOOK_BASE] = hom->mob_sprite_override;
++		}
++	}
++
++	// Update all active homunculi with new view data
++	map_foreachhomun(hom_reload_sub);
+ }
+ 
++
+ void do_init_homunculus(void){
+ 	int32 class_;
+ 
+@@ -2056,10 +2119,17 @@ void do_init_homunculus(void){
+ 	// Add homunc timer function to timer func list [Toms]
+ 	add_timer_func_list(hom_hungry, "hom_hungry");
+ 
+-	//Stock view data for homuncs
+-	memset(&hom_viewdb, 0, sizeof(hom_viewdb));
+-	for (class_ = 0; class_ < ARRAYLENGTH(hom_viewdb); class_++)
+-		hom_viewdb[class_].look[LOOK_BASE] = HM_CLASS_BASE+class_;
++    //Stock view data for homuncs
++    memset(&hom_viewdb, 0, sizeof(hom_viewdb));
++    for (class_ = 0; class_ < ARRAYLENGTH(hom_viewdb); class_++) {
++        hom_viewdb[class_].look[LOOK_BASE] = HM_CLASS_BASE+class_;
++
++        // Apply sprite override from database if configured
++        std::shared_ptr<s_homunculus_db> hom = homunculus_db.find(HM_CLASS_BASE + class_);
++        if (hom != nullptr && hom->mob_sprite_override > 0) {
++            hom_viewdb[class_].look[LOOK_BASE] = hom->mob_sprite_override;
++        }
++    }
+ }
+ 
+ void do_final_homunculus(void) {
+diff --git a/src/map/homunculus.hpp b/src/map/homunculus.hpp
+index 2f99319bc3..ea8642e9de 100644
+--- a/src/map/homunculus.hpp
++++ b/src/map/homunculus.hpp
+@@ -68,6 +68,7 @@ struct s_homunculus_db {
+ 	e_race race;
+ 	e_size base_size, evo_size;
+ 	std::vector<s_homun_skill_tree_entry> skill_tree;
++	int32 mob_sprite_override;
+ };
+ 
+ enum e_hom_mode : uint8  { MH_MD_FIGHTING = 1, MH_MD_GRAPPLING };
+@@ -98,6 +99,7 @@ struct homun_data : public block_list {
+ 	int32 hungry_timer;	//[orn]
+ 	t_exp exp_next;
+ 	std::unordered_map<uint16, int32> scd;
++	bool vd_changed;
+ };
+ 
+ #define HOM_EVO 0x100 //256
+@@ -149,6 +151,8 @@ enum e_homun_classid : uint16 {
+ 	MER_SERA,
+ 	MER_DIETER,
+ 	MER_ELEANOR,
++
++	MER_GEARLOCK = 6060,
+ };
+ 
+ /// Homunculus type
+diff --git a/src/map/map.cpp b/src/map/map.cpp
+index 363e366a72..2d4792d818 100644
+--- a/src/map/map.cpp
++++ b/src/map/map.cpp
+@@ -2575,6 +2575,30 @@ void map_foreachnpc(int32 (*func)(npc_data* nd, va_list args), ...)
+ 	dbi_destroy(iter);
+ }
+ 
++void map_foreachhomun(int32 (*func)(homun_data* hd, va_list args), ...)
++{
++    DBIterator* iter;
++    block_list* bl;
++  
++    iter = db_iterator(id_db);
++    for( bl = (block_list*)dbi_first(iter); dbi_exists(iter); bl = (block_list*)dbi_next(iter) )
++    {
++        if( bl->type == BL_HOM )
++        {
++            homun_data* hd = (homun_data*)bl;
++            va_list args;
++            int32 ret;
++  
++            va_start(args, func);
++            ret = func(hd, args);
++            va_end(args);
++            if( ret == -1 )
++                break;// stop iterating
++        }
++    }
++    dbi_destroy(iter);
++}
++
+ /// Applies func to everything in the db.
+ /// Stops iterating if func returns -1.
+ void map_foreachregen(int32 (*func)(block_list* bl, va_list args), ...)
+diff --git a/src/map/map.hpp b/src/map/map.hpp
+index 5dbad7bb2d..4c68481916 100644
+--- a/src/map/map.hpp
++++ b/src/map/map.hpp
+@@ -1215,6 +1215,7 @@ void map_deliddb(block_list *bl);
+ void map_foreachpc(int32 (*func)(map_session_data* sd, va_list args), ...);
+ void map_foreachmob(int32 (*func)(mob_data* md, va_list args), ...);
+ void map_foreachnpc(int32 (*func)(npc_data* nd, va_list args), ...);
++void map_foreachhomun(int32 (*func)(homun_data* hd, va_list args), ...);
+ void map_foreachregen(int32 (*func)(block_list* bl, va_list args), ...);
+ void map_foreachiddb(int32 (*func)(block_list* bl, va_list args), ...);
+ map_session_data * map_nick2sd(const char* nick, bool allow_partial);
+diff --git a/src/map/script_constants.hpp b/src/map/script_constants.hpp
+index 3b1eaca5f2..7f0ba4b5ee 100644
+--- a/src/map/script_constants.hpp
++++ b/src/map/script_constants.hpp
+@@ -10875,6 +10875,8 @@
+ 	export_constant(MER_SERA);
+ 	export_constant(MER_DIETER);
+ 	export_constant(MER_ELEANOR);
++	// Gearfinder Inventions
++	export_constant(MER_GEARLOCK);
+ 
+ 	/* searchstore constants */
+ 	export_constant(SEARCHSTORE_EFFECT_NORMAL);
+diff --git a/src/map/unit.cpp b/src/map/unit.cpp
+index dff9594212..e62040ec32 100644
+--- a/src/map/unit.cpp
++++ b/src/map/unit.cpp
+@@ -4133,6 +4133,13 @@ int32 unit_free(block_list *bl, clr_type clrtype)
+ 			homun_data *hd = (TBL_HOM*)bl;
+ 			map_session_data *sd = hd->master;
+ 
++    		// Free dynamic view data if allocated
++    		if (hd->vd_changed) {
++    		    aFree(hd->vd);
++    		    hd->vd = nullptr;
++    		    hd->vd_changed = false;
++    		}
++
+ 			hom_hungry_timer_delete(hd);
+ 
+ 			if( hd->homunculus.intimacy > 0 )
